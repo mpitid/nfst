@@ -96,3 +96,13 @@ class VIntOutput(os: OutputStream, compact: Boolean = true) extends Output {
     oso.close()
   }
 }
+
+class NoopOutput() extends Output {
+  protected var count = 0L
+  def write(ref: IntsRef, value: JLong): Unit = {
+    count += 1
+  }
+  def close(): Unit = {
+    println(count)
+  }
+}

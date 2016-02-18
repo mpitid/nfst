@@ -76,6 +76,8 @@ object cli {
               new IntOutput(new BufferedOutputStream(new FileOutputStream(outputFile)), !c.unrolled(), delim)
             case "vint" =>
               new VIntOutput(new BufferedOutputStream(new FileOutputStream(outputFile)), !c.unrolled())
+            case "noop" =>
+              new NoopOutput
           }
         val validate = !c.noCheck()
         val previous = new IntsRef(10)
@@ -127,6 +129,7 @@ object cli {
       "fst"
     , "ints"
     , "vint"
+    , "noop"
     )
     val map = new Subcommand("map") {
       val format = opt[String](short = 'f', default = formats.headOption,
