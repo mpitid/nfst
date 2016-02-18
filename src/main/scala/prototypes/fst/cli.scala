@@ -49,14 +49,14 @@ object cli {
                 new MappedAccInput(mmf, dec)
               }
             case "ints" =>
-              val dec = new PositiveIntsDecoder()
+              val dec = new PositiveIntsDecoder(exact = !c.unsafe())
               if (c.values()) {
-                new MappedKeyValInput(MemoryMappedFile(inputFile), dec, new PositiveLongDecoder, delim)
+                new MappedKeyValInput(MemoryMappedFile(inputFile), dec, new PositiveLongDecoder(exact = !c.unsafe()), delim)
               } else {
                 if (c.simpleInts()) {
                   new SimpleIntsInput(inputFile)
                 } else {
-                  new MappedAccInput(MemoryMappedFile(inputFile), new PositiveIntsDecoder())
+                  new MappedAccInput(MemoryMappedFile(inputFile), dec)
                 }
               }
             case "vint" =>
@@ -145,6 +145,8 @@ object cli {
         descr = s"output file format, one of ${formats.mkString(", ")}")
       val unrolled = opt[Boolean](short = 'u',
         descr = "for output formats other than FST repeat keys instead of storing counts as values")
+      val unsafe = opt[Boolean](noshort = true,
+        descr = "do not check for overflow when parsing integer or long values")
       val input = trailArg[String]("input", required = true,
         descr = "input file to read data from")
       val output = trailArg[String]("output", required = true,
