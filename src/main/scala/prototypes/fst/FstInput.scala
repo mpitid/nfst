@@ -23,12 +23,12 @@
 
 package prototypes.fst
 
-import java.io.{InputStream, EOFException, Closeable}
+import java.io.{Closeable, EOFException, InputStream}
 import java.lang.{Long => JLong}
 
 import org.apache.lucene.store.{DataInput, InputStreamDataInput}
 import org.apache.lucene.util.IntsRef
-import prototypes.core.MemoryMappedFile
+import prototypes.core.ByteScanner
 import prototypes.core.IntsRef.IntsRefWrapper
 
 /** A finite but possibly huge input, which we have to iterate
@@ -69,13 +69,13 @@ trait AccumulatingFstInput extends FstInput {
 }
 
 
-class MappedAccInput(
-    mmf: MemoryMappedFile
+class ScannerAccInput(
+    scanner: ByteScanner
   , decoder: IntsRefDecoder
   , delimiter: Byte = 10
   ) extends AccumulatingFstInput with Closeable {
   def foreach[U](fun: IntsRef => U): Unit = {
-    mmf.foreach {
+    scanner.foreach {
       case b if b == delimiter =>
         fun(decoder.build())
         decoder.reset()
@@ -83,9 +83,7 @@ class MappedAccInput(
         decoder.next(b)
     }
   }
-  def close(): Unit = {
-    mmf.close()
-  }
+  def close(): Unit = {}
 }
 
 class VIntAccInput(
@@ -155,8 +153,8 @@ class SimpleIntsInput(file: java.io.File) extends FstInput {
   }
 }
 
-class MappedKeyValInput(
-    mmf: MemoryMappedFile
+class ScannerKeyValInput(
+    scanner: ByteScanner
   , keyDecoder: IntsRefDecoder
   , valDecoder: PositiveLongDecoder
   , delim1: Byte = ','.toByte
@@ -165,7 +163,7 @@ class MappedKeyValInput(
   def foreach[U](fun: (IntsRef, JLong) => U): Unit = {
     var key: IntsRef = null
     var inKey = true
-    mmf.foreach {
+    scanner.foreach {
       case b if b == delim1 && inKey =>
         key = keyDecoder.build()
         keyDecoder.reset()
@@ -181,7 +179,5 @@ class MappedKeyValInput(
         valDecoder.next(b)
     }
   }
-  def close(): Unit = {
-    mmf.close()
-  }
+  def close(): Unit = {}
 }

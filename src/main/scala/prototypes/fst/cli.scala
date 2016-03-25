@@ -23,7 +23,7 @@
 
 package prototypes.fst
 
-import java.io.{BufferedInputStream, BufferedOutputStream, FileInputStream, FileOutputStream}
+import java.io._
 
 import org.apache.lucene.util.IntsRef
 import org.apache.lucene.util.fst.{FST, PositiveIntOutputs}
@@ -38,25 +38,25 @@ object cli {
       case Some(c @ opts.map) =>
         val delim = c.delimiter().toByte
         val inputFile = c.input().file
+        lazy val bs = scanner(c.reader(), inputFile, c.bufferSize())
         val input: FstInput =
           (c.format(): @unchecked) match {
             case f @ ("byte" | "text") =>
-              val mmf = MemoryMappedFile(inputFile)
               val dec = if (f == "byte") new RawByteDecoder() else new UTF8Decoder()
               if (c.values()) {
-                new MappedKeyValInput(mmf, dec, new PositiveLongDecoder, delim)
+                new ScannerKeyValInput(bs, dec, new PositiveLongDecoder, delim)
               } else {
-                new MappedAccInput(mmf, dec)
+                new ScannerAccInput(bs, dec)
               }
             case "ints" =>
               val dec = new PositiveIntsDecoder(exact = !c.unsafe())
               if (c.values()) {
-                new MappedKeyValInput(MemoryMappedFile(inputFile), dec, new PositiveLongDecoder(exact = !c.unsafe()), delim)
+                new ScannerKeyValInput(bs, dec, new PositiveLongDecoder(exact = !c.unsafe()), delim)
               } else {
                 if (c.simpleInts()) {
                   new SimpleIntsInput(inputFile)
                 } else {
-                  new MappedAccInput(MemoryMappedFile(inputFile), dec)
+                  new ScannerAccInput(bs, dec)
                 }
               }
             case "vint" =>
@@ -117,6 +117,14 @@ object cli {
     }
   }
 
+  def scanner(`type`: String, file: java.io.File, bufferSize: Int): ByteScanner = {
+    (`type`: @unchecked) match {
+      case "mmap" => new MMapByteScanner(file) // no need to override default
+      case "nio" => new NIOByteScanner(file, bufferSize)
+      case "raf" => new RAFByteScanner(file, bufferSize)
+    }
+  }
+
   class Options(args: Seq[String]) extends ScallopConf(args) {
     version("fst 1.0.0")
     val formats = Seq(
@@ -131,8 +139,14 @@ object cli {
     , "vint"
     , "noop"
     )
+    val readers = Seq(
+        "mmap"
+      , "nio"
+      , "raf"
+    )
     val map = new Subcommand("map") {
       val format = opt[String](short = 'f', default = formats.headOption,
+        validate = formats.contains,
         descr = s"input file format, one of ${formats.mkString(", ")}")
       val simpleInts = opt[Boolean](noshort = true)
       val values = opt[Boolean](short = 'v',
@@ -142,11 +156,16 @@ object cli {
       val noCheck = opt[Boolean](short = 'n',
         descr = "do not check if input is sorted")
       val outputFormat = opt[String](short = 'o', default = outputFormats.headOption,
-        descr = s"output file format, one of ${formats.mkString(", ")}")
+        validate = outputFormats.contains,
+        descr = s"output file format, one of ${outputFormats.mkString(", ")}")
       val unrolled = opt[Boolean](short = 'u',
         descr = "for output formats other than FST repeat keys instead of storing counts as values")
       val unsafe = opt[Boolean](noshort = true,
         descr = "do not check for overflow when parsing integer or long values")
+      val reader = opt[String](short = 'r', default = readers.headOption, validate = readers.contains,
+        descr = s"file reader type, one of ${readers.mkString(", ")}")
+      val bufferSize = opt[Int](short = 'b', default = Some(ByteScanner.DefaultBufferSize), validate = _ > 0,
+        descr = s"file read buffer size")
       val input = trailArg[String]("input", required = true,
         descr = "input file to read data from")
       val output = trailArg[String]("output", required = true,
